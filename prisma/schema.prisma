@@ -1,0 +1,172 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Authentication & Users ────────────────────────────────────
+
+model User {
+  id             String    @id @default(cuid())
+  name           String
+  email          String    @unique
+  hashedPassword String
+  image          String?
+  role           String    @default("member") // admin, member
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  lists          List[]
+  campaigns      Campaign[]
+  outreachEmails OutreachEmail[]
+  pipelineDeals  Deal[]
+  activities     Activity[]
+}
+
+// ─── Local Business Database ───────────────────────────────────
+
+model Business {
+  id            String   @id @default(cuid())
+  name          String
+  category      String   // e.g. "Restaurant", "Salon", "Retail"
+  subcategory   String?
+  description   String?
+  phone         String?
+  email         String?
+  website       String?
+  address       String
+  city          String
+  state         String
+  zipCode       String
+  latitude      Float?
+  longitude     Float?
+  googleRating  Float?   // 1-5
+  reviewCount   Int      @default(0)
+  re2Score      Int      @default(50) // 1-100 proprietary score
+  facebook      String?
+  instagram     String?
+  linkedin      String?
+  yearEstablished Int?
+  employeeCount Int?
+  annualRevenue String?  // range like "$100K-$500K"
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  listItems     ListItem[]
+  outreachEmails OutreachEmail[]
+  deals         Deal[]
+  activities    Activity[]
+}
+
+// ─── Lists (Prospect Lists) ───────────────────────────────────
+
+model List {
+  id          String     @id @default(cuid())
+  name        String
+  description String?
+  userId      String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  user        User       @relation(fields: [userId], references: [id])
+  items       ListItem[]
+  campaigns   Campaign[]
+}
+
+model ListItem {
+  id         String   @id @default(cuid())
+  listId     String
+  businessId String
+  notes      String?
+  status     String   @default("new") // new, contacted, responded, converted
+  addedAt    DateTime @default(now())
+
+  list       List     @relation(fields: [listId], references: [id], onDelete: Cascade)
+  business   Business @relation(fields: [businessId], references: [id])
+
+  @@unique([listId, businessId])
+}
+
+// ─── Outreach & Campaigns ─────────────────────────────────────
+
+model Campaign {
+  id          String   @id @default(cuid())
+  name        String
+  subject     String
+  body        String
+  status      String   @default("draft") // draft, active, paused, completed
+  listId      String?
+  userId      String
+  sendAt      DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User           @relation(fields: [userId], references: [id])
+  list        List?          @relation(fields: [listId], references: [id])
+  emails      OutreachEmail[]
+
+  // Campaign stats (denormalized for performance)
+  totalSent   Int @default(0)
+  totalOpened Int @default(0)
+  totalReplied Int @default(0)
+  totalBounced Int @default(0)
+}
+
+model OutreachEmail {
+  id         String   @id @default(cuid())
+  campaignId String?
+  businessId String
+  userId     String
+  channel    String   @default("email") // email, facebook, instagram, sms
+  subject    String?
+  body       String
+  status     String   @default("draft") // draft, sent, opened, replied, bounced
+  sentAt     DateTime?
+  openedAt   DateTime?
+  repliedAt  DateTime?
+  createdAt  DateTime @default(now())
+
+  campaign   Campaign? @relation(fields: [campaignId], references: [id])
+  business   Business  @relation(fields: [businessId], references: [id])
+  user       User      @relation(fields: [userId], references: [id])
+}
+
+// ─── Sales Pipeline / CRM ─────────────────────────────────────
+
+model Deal {
+  id         String   @id @default(cuid())
+  title      String
+  value      Float    @default(0)
+  stage      String   @default("lead") // lead, contacted, meeting, proposal, negotiation, closed_won, closed_lost
+  priority   String   @default("medium") // low, medium, high
+  notes      String?
+  businessId String
+  userId     String
+  closedAt   DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business   Business @relation(fields: [businessId], references: [id])
+  user       User     @relation(fields: [userId], references: [id])
+}
+
+// ─── Activity Log ─────────────────────────────────────────────
+
+model Activity {
+  id         String   @id @default(cuid())
+  type       String   // email_sent, email_opened, call_made, note_added, deal_created, deal_stage_changed
+  title      String
+  details    String?
+  businessId String?
+  userId     String
+  createdAt  DateTime @default(now())
+
+  business   Business? @relation(fields: [businessId], references: [id])
+  user       User      @relation(fields: [userId], references: [id])
+}
