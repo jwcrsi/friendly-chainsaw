@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Send, Pause, Play, Mail, Eye, MessageSquare, MoreVertical } from "lucide-react";
+import { Plus, Send, Pause, Play, Mail, Eye, MessageSquare, MoreVertical, Sparkles, Loader2 } from "lucide-react";
 
 interface Campaign {
   id: string;
@@ -42,6 +42,8 @@ export default function OutreachPage() {
   const [body, setBody] = useState("");
   const [lists, setLists] = useState<Array<{ id: string; name: string }>>([]);
   const [selectedList, setSelectedList] = useState("");
+  const [aiTemplate, setAiTemplate] = useState("new-business");
+  const [aiGenerating, setAiGenerating] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -161,6 +163,52 @@ export default function OutreachPage() {
                 </select>
               </div>
             </div>
+            {/* AI Template Generator */}
+            <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Sparkles size={16} className="text-purple-600" />
+                <span className="text-sm font-medium text-purple-900">AI Campaign Templates</span>
+              </div>
+              <div className="flex gap-2">
+                <select
+                  value={aiTemplate}
+                  onChange={(e) => setAiTemplate(e.target.value)}
+                  className="flex-1 px-3 py-2 border border-purple-200 rounded-lg text-sm text-gray-900 bg-white"
+                >
+                  <option value="new-business">New Business Outreach</option>
+                  <option value="seasonal-promo">Seasonal Promotion</option>
+                  <option value="re-engagement">Re-engagement</option>
+                  <option value="referral-ask">Referral Request</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setAiGenerating(true);
+                    try {
+                      const res = await fetch("/api/ai/generate-campaign", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ template: aiTemplate }),
+                      });
+                      const data = await res.json();
+                      setSubject(data.subject);
+                      setBody(data.body);
+                    } catch (err) {
+                      console.error(err);
+                    } finally {
+                      setAiGenerating(false);
+                    }
+                  }}
+                  disabled={aiGenerating}
+                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm font-medium disabled:opacity-50"
+                >
+                  {aiGenerating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                  Generate
+                </button>
+              </div>
+              <p className="text-xs text-purple-600 mt-2">Uses {'{{business_name}}'}, {'{{category}}'}, {'{{city}}'} placeholders for personalization</p>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email Subject</label>
               <input

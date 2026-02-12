@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, use } from "react";
-import { Star, MapPin, Phone, Mail, Globe, Facebook, Instagram, Linkedin, ArrowLeft, Send, TrendingUp, Calendar } from "lucide-react";
+import { Star, MapPin, Phone, Mail, Globe, Facebook, Instagram, Linkedin, ArrowLeft, Send, TrendingUp, Calendar, Sparkles, Loader2 } from "lucide-react";
 import Link from "next/link";
 
 interface Business {
@@ -66,6 +66,10 @@ export default function BusinessDetailPage({ params }: { params: Promise<{ id: s
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [emailSubject, setEmailSubject] = useState("");
   const [emailBody, setEmailBody] = useState("");
+  const [aiTone, setAiTone] = useState("friendly");
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
 
   useEffect(() => {
     fetch(`/api/businesses/${id}`)
@@ -240,6 +244,50 @@ export default function BusinessDetailPage({ params }: { params: Promise<{ id: s
             <div className="bg-white border border-gray-200 rounded-xl p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Compose Email</h2>
               <div className="space-y-3">
+                {/* AI Generate section */}
+                <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Sparkles size={16} className="text-purple-600" />
+                    <span className="text-sm font-medium text-purple-900">AI Email Assistant</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <select
+                      value={aiTone}
+                      onChange={(e) => setAiTone(e.target.value)}
+                      className="flex-1 px-3 py-2 border border-purple-200 rounded-lg text-sm text-gray-900 bg-white"
+                    >
+                      <option value="friendly">Friendly</option>
+                      <option value="professional">Professional</option>
+                      <option value="casual">Casual</option>
+                      <option value="follow-up">Follow-up</option>
+                    </select>
+                    <button
+                      onClick={async () => {
+                        setAiGenerating(true);
+                        try {
+                          const res = await fetch("/api/ai/generate-email", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ businessId: business.id, tone: aiTone }),
+                          });
+                          const data = await res.json();
+                          setEmailSubject(data.subject);
+                          setEmailBody(data.body);
+                        } catch (err) {
+                          console.error(err);
+                        } finally {
+                          setAiGenerating(false);
+                        }
+                      }}
+                      disabled={aiGenerating}
+                      className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm font-medium disabled:opacity-50"
+                    >
+                      {aiGenerating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                      Generate
+                    </button>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
                   <input type="text" value={business.email || ""} disabled className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-500" />
@@ -259,14 +307,46 @@ export default function BusinessDetailPage({ params }: { params: Promise<{ id: s
                   <textarea
                     value={emailBody}
                     onChange={(e) => setEmailBody(e.target.value)}
-                    rows={6}
+                    rows={8}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900"
-                    placeholder="Write your message..."
+                    placeholder="Write your message or use AI to generate one..."
                   />
                 </div>
-                <button className="w-full px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium">
-                  Send Email
-                </button>
+                {emailSent ? (
+                  <div className="w-full px-4 py-2.5 bg-emerald-50 text-emerald-700 rounded-lg text-sm font-medium text-center border border-emerald-200">
+                    Email sent successfully!
+                  </div>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      if (!emailSubject || !emailBody) return;
+                      setSendingEmail(true);
+                      try {
+                        await fetch(`/api/businesses/${business.id}/outreach`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ subject: emailSubject, body: emailBody, channel: "email" }),
+                        });
+                        setEmailSent(true);
+                        setTimeout(() => {
+                          setEmailSent(false);
+                          setEmailSubject("");
+                          setEmailBody("");
+                          setShowEmailForm(false);
+                        }, 2000);
+                      } catch (err) {
+                        console.error(err);
+                      } finally {
+                        setSendingEmail(false);
+                      }
+                    }}
+                    disabled={sendingEmail || !emailSubject || !emailBody}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium disabled:opacity-50"
+                  >
+                    {sendingEmail ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                    Send Email
+                  </button>
+                )}
               </div>
             </div>
           )}

@@ -1,0 +1,193 @@
+// Production schema - use this when deploying with PostgreSQL
+// Copy this file to schema.prisma before deploying to production
+// or set PRISMA_SCHEMA_PATH=prisma/schema.postgres.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Authentication & Users ────────────────────────────────────
+
+model User {
+  id             String    @id @default(cuid())
+  name           String
+  email          String    @unique
+  hashedPassword String
+  image          String?
+  role           String    @default("member")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  lists          List[]
+  campaigns      Campaign[]
+  outreachEmails OutreachEmail[]
+  pipelineDeals  Deal[]
+  activities     Activity[]
+}
+
+// ─── Local Business Database ───────────────────────────────────
+
+model Business {
+  id            String   @id @default(cuid())
+  name          String
+  category      String
+  subcategory   String?
+  description   String?
+  phone         String?
+  email         String?
+  website       String?
+  address       String
+  city          String
+  state         String
+  zipCode       String
+  latitude      Float?
+  longitude     Float?
+  googleRating  Float?
+  reviewCount   Int      @default(0)
+  re2Score      Int      @default(50)
+  facebook      String?
+  instagram     String?
+  linkedin      String?
+  yearEstablished Int?
+  employeeCount Int?
+  annualRevenue String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  listItems      ListItem[]
+  outreachEmails OutreachEmail[]
+  deals          Deal[]
+  activities     Activity[]
+
+  @@index([category])
+  @@index([city, state])
+  @@index([re2Score])
+}
+
+// ─── Lists (Prospect Lists) ───────────────────────────────────
+
+model List {
+  id          String     @id @default(cuid())
+  name        String
+  description String?
+  userId      String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  user        User       @relation(fields: [userId], references: [id])
+  items       ListItem[]
+  campaigns   Campaign[]
+
+  @@index([userId])
+}
+
+model ListItem {
+  id         String   @id @default(cuid())
+  listId     String
+  businessId String
+  notes      String?
+  status     String   @default("new")
+  addedAt    DateTime @default(now())
+
+  list       List     @relation(fields: [listId], references: [id], onDelete: Cascade)
+  business   Business @relation(fields: [businessId], references: [id])
+
+  @@unique([listId, businessId])
+  @@index([listId])
+}
+
+// ─── Outreach & Campaigns ─────────────────────────────────────
+
+model Campaign {
+  id          String   @id @default(cuid())
+  name        String
+  subject     String
+  body        String   @db.Text
+  status      String   @default("draft")
+  listId      String?
+  userId      String
+  sendAt      DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User           @relation(fields: [userId], references: [id])
+  list        List?          @relation(fields: [listId], references: [id])
+  emails      OutreachEmail[]
+
+  totalSent    Int @default(0)
+  totalOpened  Int @default(0)
+  totalReplied Int @default(0)
+  totalBounced Int @default(0)
+
+  @@index([userId])
+  @@index([status])
+}
+
+model OutreachEmail {
+  id         String   @id @default(cuid())
+  campaignId String?
+  businessId String
+  userId     String
+  channel    String   @default("email")
+  subject    String?
+  body       String   @db.Text
+  status     String   @default("draft")
+  sentAt     DateTime?
+  openedAt   DateTime?
+  repliedAt  DateTime?
+  createdAt  DateTime @default(now())
+
+  campaign   Campaign? @relation(fields: [campaignId], references: [id])
+  business   Business  @relation(fields: [businessId], references: [id])
+  user       User      @relation(fields: [userId], references: [id])
+
+  @@index([businessId])
+  @@index([campaignId])
+  @@index([userId])
+}
+
+// ─── Sales Pipeline / CRM ─────────────────────────────────────
+
+model Deal {
+  id         String   @id @default(cuid())
+  title      String
+  value      Float    @default(0)
+  stage      String   @default("lead")
+  priority   String   @default("medium")
+  notes      String?  @db.Text
+  businessId String
+  userId     String
+  closedAt   DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business   Business @relation(fields: [businessId], references: [id])
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([stage])
+}
+
+// ─── Activity Log ─────────────────────────────────────────────
+
+model Activity {
+  id         String   @id @default(cuid())
+  type       String
+  title      String
+  details    String?  @db.Text
+  businessId String?
+  userId     String
+  createdAt  DateTime @default(now())
+
+  business   Business? @relation(fields: [businessId], references: [id])
+  user       User      @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([businessId])
+}
